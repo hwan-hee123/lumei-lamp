@@ -1,0 +1,16 @@
+name = "lumei-lamp"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[kv_namespaces]]
+binding = "LUMEI_KV"
+id = "d2968c9e745e481bb284bcb2e13cceb1"
+
+[[durable_objects.bindings]]
+name = "MCP_OBJECT"
+class_name = "LumeiMCP"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LumeiMCP"]

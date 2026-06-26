@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LUMEI Virtual Device</title>
+
+  <!--
+  ✏️ 학생 수정 포인트 (1/2) — 제품 정보
+  아래 JSON을 팀의 제품 기획에 맞게 수정하세요.
+  Claude가 "이 제품이 뭐야?"라고 물으면 이 내용을 읽어서 답합니다.
+  -->
+  <script id="product-info" type="application/json">
+  {
+    "name": "LUMEI",
+    "tagline": "빛이 피사체를 찾아가는 조명입니다.",
+    "description": "LUMEI는 램프 지지 암에 내장된 센서와 액추에이터로 특정 물체나 사람을 자동으로 추적하며 조명을 비추는 스마트 조명입니다. Focus / Relax / Night 세 가지 모드와 밝기 조절을 Claude MCP를 통해 원격으로 제어할 수 있습니다.",
+    "features": [
+      "물체 자동 추적 (Tracking Mode)",
+      "3가지 조명 모드: Focus / Relax / Night",
+      "0~100단계 밝기 조절",
+      "Claude MCP를 통한 원격 제어"
+    ],
+    "spec": {
+      "battery": "TODO: 배터리 지속시간",
+      "price": "TODO: 가격",
+      "buyUrl": "TODO: 구매 링크"
+    }
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1c1c1e;
+      --card: #2c2c2e;
+      --card-active: #3a3a3c;
+      --text: #ffffff;
+      --text-muted: rgba(255,255,255,0.45);
+      --accent: #FFB780;
+      --radius-card: 22px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px 60px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 4px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+
+    .grid {
+      width: 100%;
+      max-width: 340px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    /* 카드 공통 */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius-card);
+      padding: 20px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      border: 1.5px solid transparent;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card:active { transform: scale(0.97); }
+    .card .card-icon { font-size: 26px; margin-bottom: 10px; display: block; }
+    .card .card-label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+    .card .card-value { font-size: 22px; font-weight: 600; margin-top: 2px; }
+
+    /* 전원 카드 */
+    #card-power {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 110px;
+    }
+    #card-power.on { background: var(--card-active); border-color: var(--accent); }
+
+    /* 배터리 카드 */
+    #card-battery {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 110px;
+    }
+    .battery-bar-wrap {
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      height: 5px;
+      width: 100%;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .battery-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--accent);
+      transition: width 0.5s ease;
+    }
+
+    /* 모드 카드 */
+    .mode-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 18px 8px;
+      border-radius: var(--radius-card);
+      cursor: pointer;
+      background: var(--card);
+      border: 1.5px solid transparent;
+      transition: background 0.2s, border-color 0.2s, transform 0.1s;
+      text-align: center;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mode-card:active { transform: scale(0.96); }
+    .mode-card .mode-icon { font-size: 24px; margin-bottom: 8px; }
+    .mode-card .mode-label { font-size: 12px; font-weight: 600; letter-spacing: 0.5px; color: var(--text-muted); }
+
+    .mode-card.active-focus { background: #3d2b1a; border-color: #FFB780; }
+    .mode-card.active-focus .mode-label { color: #FFB780; }
+    .mode-card.active-relax { background: #2f2f1a; border-color: #FFF176; }
+    .mode-card.active-relax .mode-label { color: #FFF176; }
+    .mode-card.active-night { background: #2a1f0e; border-color: #FFB74D; }
+    .mode-card.active-night .mode-label { color: #FFB74D; }
+
+    /* 밝기 슬라이더 카드 */
+    .brightness-card {
+      background: var(--card);
+      border-radius: var(--radius-card);
+      padding: 20px 22px;
+    }
+    .brightness-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .brightness-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .brightness-value { font-size: 22px; font-weight: 600; }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.12);
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.08);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+    }
+
+    /* 메시지 로그 */
+    .log-box {
+      height: 220px;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      background: transparent;
+      padding: 12px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      color: rgba(255,255,255,0.45);
+    }
+  </style>
+</head>
+<body>
+
+<div class="logo">LUMEI</div>
+
+<div class="grid">
+
+  <!-- 전원 + 배터리 -->
+  <div class="row-2">
+    <div class="card" id="card-power" onclick="togglePower()">
+      <span class="card-icon">⏻</span>
+      <div>
+        <div class="card-label">On/Off</div>
+        <div class="card-value" id="power-text" style="font-size:15px; margin-top:4px;">OFF</div>
+      </div>
+    </div>
+
+    <div class="card" style="cursor:default;">
+      <span class="card-icon">⚡</span>
+      <div>
+        <div class="card-label">Battery</div>
+        <div class="card-value"><span id="battery-pct">98</span>%</div>
+        <div class="battery-bar-wrap">
+          <div class="battery-bar-fill" id="battery-fill" style="width:98%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 모드 선택 -->
+  <div class="row-3">
+    <div class="mode-card" id="mode-focus" onclick="setMode('focus')">
+      <div class="mode-icon">⊙</div>
+      <div class="mode-label">Focus</div>
+    </div>
+    <div class="mode-card" id="mode-relax" onclick="setMode('relax')">
+      <div class="mode-icon">〜</div>
+      <div class="mode-label">Relax</div>
+    </div>
+    <div class="mode-card" id="mode-night" onclick="setMode('night')">
+      <div class="mode-icon">☽</div>
+      <div class="mode-label">Night</div>
+    </div>
+  </div>
+
+  <!-- 밝기 슬라이더 -->
+  <div class="brightness-card">
+    <div class="brightness-header">
+      <div class="brightness-label">
+        <span>✦</span>
+        <span>Brightness</span>
+      </div>
+      <div class="brightness-value"><span id="brightness-val">50</span></div>
+    </div>
+    <input type="range" id="brightness-slider" min="0" max="100" value="50"
+           oninput="onBrightnessInput(this.value)">
+  </div>
+
+  <!-- 푸시 메시지 로그 -->
+  <div>
+    <div style="font-size:0.85rem; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px;">Push Messages</div>
+    <div class="log-box" id="msg-log"></div>
+  </div>
+
+</div>
+
+<script>
+  // ✏️ 학생 수정 포인트 (2/2) — 배포 후 자신의 Worker URL로 교체하세요
+  // 형식: https://lumei-lamp.{Cloudflare 계정명}.workers.dev
+  const MCP_WORKER_URL = "https://lumei-lamp.typica-918.workers.dev";
+
+  let lastStateStr = "";
+  let prevState = null;
+
+  let state = { power: false, brightness: 50, mode: null, battery: 98, message: "" };
+
+  function applyPower(on) {
+    document.getElementById('card-power').classList.toggle('on', on);
+    document.getElementById('power-text').textContent = on ? 'ON' : 'OFF';
+  }
+
+  function applyMode(mode) {
+    ['focus','relax','night'].forEach(m => {
+      document.getElementById('mode-' + m).className = 'mode-card' + (m === mode ? ' active-' + m : '');
+    });
+  }
+
+  function applyBrightness(val) {
+    document.getElementById('brightness-val').textContent = val;
+    document.getElementById('brightness-slider').value = val;
+  }
+
+  function applyBattery(pct) {
+    document.getElementById('battery-pct').textContent = pct;
+    document.getElementById('battery-fill').style.width = pct + '%';
+  }
+
+  // 사용자 조작
+  function togglePower() {
+    state.power = !state.power;
+    applyPower(state.power);
+    pushLog(`전원 ${state.power ? 'ON' : 'OFF'}`);
+    pushToServer({ power: state.power });
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    applyMode(mode);
+    pushLog(`모드 → ${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+    pushToServer({ mode });
+  }
+
+  function onBrightnessInput(val) {
+    state.brightness = parseInt(val);
+    applyBrightness(state.brightness);
+  }
+  document.getElementById('brightness-slider').addEventListener('change', e => {
+    pushLog(`밝기 → ${e.target.value}`);
+    pushToServer({ brightness: parseInt(e.target.value) });
+  });
+
+  // MCP Worker 연동
+  async function pushToServer(patch) {
+    try {
+      await fetch(MCP_WORKER_URL + "/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch)
+      });
+    } catch (e) {}
+  }
+
+  function applyServerState(s) {
+    const logs = [];
+    if (typeof s.power === 'boolean' && (!prevState || prevState.power !== s.power)) {
+      state.power = s.power; applyPower(s.power);
+      logs.push(`전원 ${s.power ? 'ON' : 'OFF'}`);
+    }
+    if (s.mode && (!prevState || prevState.mode !== s.mode)) {
+      state.mode = s.mode; applyMode(s.mode);
+      logs.push(`모드 → ${s.mode}`);
+    }
+    if (typeof s.brightness === 'number' && (!prevState || prevState.brightness !== s.brightness)) {
+      state.brightness = s.brightness; applyBrightness(s.brightness);
+      logs.push(`밝기 → ${s.brightness}`);
+    }
+    if (typeof s.battery === 'number' && (!prevState || prevState.battery !== s.battery)) {
+      applyBattery(s.battery);
+    }
+    if (s.message && (!prevState || prevState.message !== s.message)) {
+      logs.push(`📨 ${s.message}`);
+    }
+    if (logs.length) pushLog(logs.join(' / '));
+    prevState = { ...s };
+  }
+
+  async function pollState() {
+    try {
+      const res = await fetch(MCP_WORKER_URL + "/state");
+      if (!res.ok) return;
+      const text = await res.text();
+      if (text === '{}' || text === lastStateStr) return;
+      lastStateStr = text;
+      applyServerState(JSON.parse(text));
+    } catch (e) {}
+  }
+
+  function pushLog(msg) {
+    const log = document.getElementById('msg-log');
+    const time = new Date().toLocaleTimeString();
+    log.innerHTML += `<div>[${time}] ${msg}</div>`;
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // 초기화
+  applyPower(false);
+  applyBattery(98);
+  setInterval(pollState, 2000);
+</script>
+</body>
+</html>
